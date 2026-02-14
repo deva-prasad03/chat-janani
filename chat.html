@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat - Chat App</title>
+    <script src="https://cdn.tailwindcss.com">
+        let message=""
+    </script>
+</head>
+<body class="bg-gray-100">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-blue-500 text-white shadow-lg">
+            <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center w-full">
+                <div class="flex items-center space-x-4">
+                    <button 
+                        onclick="goBack()"
+                        class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold transition"
+                    >
+                        ← Back
+                    </button>
+                    <div>
+                        <h1 id="chatUserName" class="text-2xl font-bold"></h1>
+                        <p id="chatUserStatus" class="text-sm text-blue-200"></p>
+                    </div>
+                </div>
+                <button 
+                    onclick="logout()"
+                    class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-semibold transition"
+                >
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- Chat Container -->
+        <main class="flex-1 max-w-4xl mx-auto w-full px-4 py-8">
+            <div class="bg-white rounded-lg shadow-lg h-96 md:h-96 flex flex-col">
+                <!-- Messages Area -->
+                <div id="messagesContainer" class="flex-1 overflow-y-auto p-6 space-y-4">
+                    <!-- Messages will be populated here -->
+                </div>
+
+                <!-- Message Input Area -->
+                <div class="border-t border-gray-200 p-4 bg-gray-50">
+                    <div class="flex space-x-4">
+                        <input 
+                            type="text"
+                            id="messageInput"
+                            placeholder="Type your message..."
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                        <button 
+                            onclick="sendMessage()"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition"
+                        >
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let selectedUser = null;
+        let currentUser = null;
+
+        function checkAuth() {
+            currentUser = localStorage.getItem('currentUser');
+            if (!currentUser) {
+                window.location.href = 'index.html';
+                return;
+            }
+        }
+
+        function loadSelectedUser() {
+            const userString = localStorage.getItem('selectedUser');
+            if (!userString) {
+                window.location.href = 'users.html';
+                return;
+            }
+            
+            selectedUser = JSON.parse(userString);
+            document.getElementById('chatUserName').textContent = selectedUser.name;
+            document.getElementById('chatUserStatus').textContent = selectedUser.status;
+        }
+
+        function loadMessages() {
+            const messagesKey = `chat_${selectedUser.id}`;
+            const savedMessages = localStorage.getItem(messagesKey);
+            const messages = savedMessages ? JSON.parse(savedMessages) : [];
+         displayMessages(messages);
+        }
+
+        function displayMessages(messages) {
+            const container = document.getElementById('messagesContainer');
+            container.innerHTML = '';
+            
+            if (messages.length === 0) {
+                container.innerHTML = '<p class="text-center text-gray-500 text-sm">No messages yet. Start the conversation!</p>';
+                return;
+            }
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = msg.sender === currentUser 
+                    ? 'flex justify-end' 
+                    : 'flex justify-start';
+                
+                const bubbleClass = msg.sender === currentUser
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-200 text-gray-800';
+                
+                messageDiv.innerHTML = `
+                    <div class="max-w-xs">
+                        <div class="${bubbleClass} rounded-lg px-4 py-2 break-words">
+                            <p class="text-sm">${escapeHtml(msg.text)}</p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 ${msg.sender === currentUser ? 'text-right' : 'text-left'}">
+                            ${msg.time}
+                        </p>
+                    </div>
+                `;
+                
+                container.appendChild(messageDiv);
+            });
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const text = messageInput.value.trim();
+            
+            if (!text) return;
+            
+            const messagesKey = `chat_${selectedUser.id}`;
+            const savedMessages = localStorage.getItem(messagesKey);
+            const messages = savedMessages ? JSON.parse(savedMessages) : [];
+            
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messages.push({
+                sender: currentUser,
+                text: text,
+                time: time,
+                timestamp: now.getTime()
+            });
+            moderate()
+            
+            async function moderate() {
+     
+
+      const response = await fetch("http://127.0.0.1:8000/moderate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text })
+      });
+
+      const data = await response.json();
+      console.log("Moderation response:", data.toxic);
+      if(data.toxic){
+        return alert("Your message contains inappropriate content and cannot be sent.");
+        
+      }
+      else{
+        displayMessages(messages);
+      }
+      document.getElementById("result").textContent =
+        JSON.stringify(data, null, 2);
+    }
+            
+            localStorage.setItem(messagesKey, JSON.stringify(messages));
+            messageInput.value = '';
+            
+            
+            
+            // Simulate response from other user
+            setTimeout(() => {
+                simulateUserResponse(messages);
+            }, 500 + Math.random() * 1500);
+        }
+
+        function simulateUserResponse(messages) {
+            const responses = [
+                'That sounds great!',
+                'I agree with you',
+                'Haha, nice one!',
+                'Definitely!',
+                'Let me think about that',
+                'Sounds good to me',
+                'Cool, let\'s catch up soon',
+                'Thanks for letting me know',
+                'Got it!',
+                'See you soon!'
+            ];
+            
+            const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+            
+            const now = new Date();
+            const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messages.push({
+                sender: selectedUser.name,
+                text: randomResponse,
+                time: time,
+                timestamp: now.getTime()
+            });
+            
+            const messagesKey = `chat_${selectedUser.id}`;
+            localStorage.setItem(messagesKey, JSON.stringify(messages));
+            
+            displayMessages(messages);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function goBack() {
+            window.location.href = 'users.html';
+        }
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('selectedUser');
+            window.location.href = 'index.html';
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Initialize page
+        checkAuth();
+        loadSelectedUser();
+        loadMessages();
+        
+        document.getElementById('messageInput').addEventListener('keypress', handleKeyPress);
+    </script>
+</body>
+</html>
