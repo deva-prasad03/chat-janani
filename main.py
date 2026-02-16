@@ -6,6 +6,8 @@ import smtplib
 from email.message import EmailMessage
 import firebase_admin
 from firebase_admin import credentials, firestore
+import os
+from dotenv import load_dotenv
 
 # Initialize Firebase
 cred = credentials.Certificate("serviceAccountKey.json")
@@ -16,8 +18,11 @@ db = firestore.client()
 
 #
 
-EMAIL = "devaprasadsakthivel@gmail.com"
-APP_PASSWORD = "mtua kyap dwcv gvzq"
+
+load_dotenv()  # loads .env file
+
+EMAIL = os.getenv("EMAIL")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
 
 # ---------------- App ----------------
 app = FastAPI(
