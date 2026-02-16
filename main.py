@@ -4,6 +4,15 @@ from pydantic import BaseModel, Field
 from detoxify import Detoxify
 import smtplib
 from email.message import EmailMessage
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+# Initialize Firebase
+cred = credentials.Certificate("serviceAccountKey.json")
+firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
 
 #
 
@@ -44,6 +53,7 @@ class ModerationResponse(BaseModel):
 
 # ---------------- Endpoint ----------------
 @app.post("/moderate", response_model=ModerationResponse)
+@app.post("/moderate", response_model=ModerationResponse)
 def moderate_text(payload: TextRequest):
     text = payload.text.strip()
 
@@ -54,8 +64,6 @@ def moderate_text(payload: TextRequest):
         raise HTTPException(400, "Only English text is supported")
 
     raw_scores = model.predict(text)
-
-    # convert numpy floats → python floats
     scores = {k: float(v) for k, v in raw_scores.items()}
 
     toxic = (
@@ -64,8 +72,21 @@ def moderate_text(payload: TextRequest):
         or scores["threat"] > 0.6
     )
 
-    if(toxic):
+    if toxic:
         sendmail(text)
+
+        db.collection("messages").add({
+            "text": text,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "toxic": True
+        })
+    else:
+        # ✅ Save safe message to Firestore
+        db.collection("messages").add({
+            "text": text,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "toxic": False
+        })
 
     return {
         "toxic": toxic,
